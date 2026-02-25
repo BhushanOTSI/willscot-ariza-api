@@ -8,7 +8,7 @@ from fastapi import FastAPI, HTTPException
 
 SPACE_ID = os.getenv("ARIZE_SPACE_ID", "U3BhY2U6Mzg0MzQ6bWs0bA==")
 API_KEY = os.getenv("ARIZE_API_KEY", "ak-7cf65008-8f13-454e-8254-c7916752ec56-yuWcPT5sUnnUuw5AZSxFPgUkqcq9I5P8")
-DEFAULT_PROJECT_NAME = os.getenv("ARIZE_PROJECT_NAME", "CopilotStudio4")
+DEFAULT_PROJECT_NAME = os.getenv("ARIZE_PROJECT_NAME", "")
 
 SELECTED_COLUMNS = [
     "context.trace_id",
