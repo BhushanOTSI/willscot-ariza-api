@@ -30,6 +30,7 @@ SELECTED_COLUMNS = [
 ]
 
 app = FastAPI(title="Arize Spans Export API")
+EXCLUDED_PROJECTS = {"arize-demo-generative-llm-tracing", "arize-demo-llm-travel-agent"}
 
 
 def _ensure_utc(dt: datetime) -> datetime:
@@ -89,12 +90,14 @@ def get_projects(limit: int = 100) -> dict:
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to fetch projects: {exc}") from exc
 
+    filtered_projects = [project for project in projects if project.name not in EXCLUDED_PROJECTS]
+
     return {
         "space_id": SPACE_ID,
-        "project_count": len(projects),
+        "project_count": len(filtered_projects),
         "projects": [
             {"name": project.name, "id": project.id, "space_id": project.space_id}
-            for project in projects
+            for project in filtered_projects
         ],
     }
 
@@ -128,7 +131,7 @@ def export_spans(
             # Use only low bound in export call; enforce full range locally below.
             "start_time": start_low,
             "end_time": datetime.now(timezone.utc),
-            "columns": SELECTED_COLUMNS,
+            "columns": SELECTED_COLUMNS
         }
         if sdk_where:
             export_kwargs["where"] = sdk_where
