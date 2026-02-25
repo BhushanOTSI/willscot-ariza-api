@@ -59,6 +59,46 @@ def health() -> dict:
     return {"status": "ok"}
 
 
+@app.get("/getprojects")
+def get_projects(limit: int = 100) -> dict:
+    if not SPACE_ID:
+        raise HTTPException(status_code=500, detail="Missing ARIZE_SPACE_ID")
+    if limit <= 0:
+        raise HTTPException(status_code=400, detail="limit must be greater than 0")
+
+    try:
+        client = _get_client()
+        response = client.projects.list(space_id=SPACE_ID, limit=limit)
+        projects = list(response.projects)
+        next_cursor = getattr(response, "next_cursor", None)
+        if not next_cursor and hasattr(response, "page_info"):
+            next_cursor = getattr(response.page_info, "next_cursor", None)
+
+        while next_cursor:
+            response = client.projects.list(
+                space_id=SPACE_ID,
+                limit=limit,
+                cursor=next_cursor,
+            )
+            projects.extend(response.projects)
+            next_cursor = getattr(response, "next_cursor", None)
+            if not next_cursor and hasattr(response, "page_info"):
+                next_cursor = getattr(response.page_info, "next_cursor", None)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch projects: {exc}") from exc
+
+    return {
+        "space_id": SPACE_ID,
+        "project_count": len(projects),
+        "projects": [
+            {"name": project.name, "id": project.id, "space_id": project.space_id}
+            for project in projects
+        ],
+    }
+
+
 @app.post("/spans/export")
 def export_spans(
     project_name: str = DEFAULT_PROJECT_NAME,
