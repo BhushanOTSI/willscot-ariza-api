@@ -1,0 +1,11 @@
+[project]
+name = "dashboard"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "arize>=8.4.0",
+    "fastapi>=0.133.0",
+    "uvicorn>=0.41.0",
+]
