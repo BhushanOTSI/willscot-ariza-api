@@ -5,6 +5,7 @@ from typing import Optional, Any
 
 from arize import ArizeClient
 from fastapi import FastAPI, HTTPException
+import pandas as pd
 
 SPACE_ID = os.getenv("ARIZE_SPACE_ID", "U3BhY2U6Mzg0MzQ6bWs0bA==")
 API_KEY = os.getenv("ARIZE_API_KEY", "ak-7cf65008-8f13-454e-8254-c7916752ec56-yuWcPT5sUnnUuw5AZSxFPgUkqcq9I5P8")
@@ -61,28 +62,48 @@ def health() -> dict:
 @app.post("/spans/export")
 def export_spans(
     project_name: str = DEFAULT_PROJECT_NAME,
-    start_time: Optional[datetime] = None,
-    end_time: Optional[datetime] = None,
+    start_time_low: Optional[datetime] = None,
+    start_time_high: Optional[datetime] = None,
+    where: Optional[str] = None,
 ):
-    start = _ensure_utc(start_time) if start_time else datetime(2020, 1, 1, tzinfo=timezone.utc)
-    end = _ensure_utc(end_time) if end_time else datetime.now(timezone.utc)
+    start_low = _ensure_utc(start_time_low) if start_time_low else datetime(2020, 1, 1, tzinfo=timezone.utc)
+    start_high = _ensure_utc(start_time_high) if start_time_high else datetime.now(timezone.utc)
 
-    if start > end:
-        raise HTTPException(status_code=400, detail="start_time must be earlier than end_time")
+    if start_low > start_high:
+        raise HTTPException(status_code=400, detail="start_time_low must be earlier than start_time_high")
 
     if not project_name or not project_name.strip():
         raise HTTPException(status_code=400, detail="project_name is required")
 
     try:
         client = _get_client()
+        where_value = where.strip() if where else ""
+        sdk_where = None
+        if where_value:
+            sdk_where = where_value
+
+        export_kwargs = {
+            "space_id": SPACE_ID,
+            "project_name": project_name.strip(),
+            # Use only low bound in export call; enforce full range locally below.
+            "start_time": start_low,
+            "end_time": datetime.now(timezone.utc),
+            "columns": SELECTED_COLUMNS,
+        }
+        if sdk_where:
+            export_kwargs["where"] = sdk_where
+
         spans_df = client.spans.export_to_df(
-            space_id=SPACE_ID,
-            project_name=project_name.strip(),
-            start_time=start,
-            end_time=end,
-            columns=SELECTED_COLUMNS,
-            # where="parent_id is null"
+            **export_kwargs
         )
+
+        # Apply reliable time filtering locally.
+        if "start_time" in spans_df.columns:
+            start_series = pd.to_datetime(spans_df["start_time"], errors="coerce", utc=True)
+            start_bound = pd.Timestamp(start_low)
+            end_bound = pd.Timestamp(start_high)
+            spans_df = spans_df[start_series.between(start_bound, end_bound, inclusive="both")]
+
         spans_df = spans_df.reindex(columns=SELECTED_COLUMNS)
     except HTTPException:
         raise
@@ -96,8 +117,9 @@ def export_spans(
         "project_name": project_name.strip(),
         "row_count": len(spans_records),
         "columns": SELECTED_COLUMNS,
-        "start_time": start.isoformat(),
-        "end_time": end.isoformat(),
+        "start_time_low": start_low.isoformat(),
+        "start_time_high": start_high.isoformat(),
+        "where": sdk_where,
         "data": spans_records,
     }
 
