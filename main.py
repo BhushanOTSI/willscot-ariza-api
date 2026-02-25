@@ -6,6 +6,7 @@ from typing import Optional, Any
 from arize import ArizeClient
 from fastapi import FastAPI, HTTPException
 import pandas as pd
+from fastapi.middleware.cors import CORSMiddleware
 
 SPACE_ID = os.getenv("ARIZE_SPACE_ID", "")
 API_KEY = os.getenv("ARIZE_API_KEY", "")
@@ -31,6 +32,13 @@ SELECTED_COLUMNS = [
 
 app = FastAPI(title="Arize Spans Export API")
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 def _ensure_utc(dt: datetime) -> datetime:
     if dt.tzinfo is None:
